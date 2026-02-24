@@ -1,0 +1,90 @@
+
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>비혼뒤맑음</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-clear: #FFFFFF;
+            --mint-main: #2DD4BF;
+            --mint-light: #F0FDFA;
+            --text-main: #334155;
+            --text-muted: #94A3B8;
+            --border-soft: #F1F5F9;
+        }
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background-color: #F8FAFC;
+            color: var(--text-main);
+            overflow-x: hidden;
+            letter-spacing: -0.02em;
+        }
+        .bg-white-pure {
+            background-color: var(--bg-clear);
+        }
+        .text-mint {
+            color: var(--mint-main);
+        }
+        .bg-mint {
+            background-color: var(--mint-main);
+        }
+        .card-shadow {
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.04), 0 8px 10px -6px rgba(0, 0, 0, 0.02);
+        }
+        .glass-nav {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-top: 1px solid var(--border-soft);
+        }
+        svg {
+            stroke-width: 1.5px !important;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+        .page-enter {
+            animation: fadeIn 0.5s ease-out;
+        }
+        .scale-enter {
+            animation: scaleIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes scaleIn {
+            from { opacity: 0; transform: scale(0.9); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-thumb { background: var(--mint-main); border-radius: 10px; }
+    </style>
+    <script>
+        if (typeof process === 'undefined') {
+            window.process = { env: { API_KEY: '' } };
+        }
+    </script>
+    <script type="importmap">
+{
+  "imports": {
+    "react/": "https://esm.sh/react@19.2.3/",
+    "react": "https://esm.sh/react@19.2.3",
+    "react-dom/": "https://esm.sh/react-dom@19.2.3/",
+    "react-dom": "https://esm.sh/react-dom@19.2.3",
+    "react-dom/client": "https://esm.sh/react-dom@19.2.3/client",
+    "firebase/": "https://esm.sh/firebase@^12.8.0/"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+<body>
+    <div id="root"></div>
+    <script type="module" src="index.tsx"></script>
+<script type="module" src="/index.tsx"></script>
+</body>
+</html>
