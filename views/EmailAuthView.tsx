@@ -4,7 +4,7 @@ import { auth, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendE
 import { UserProfile } from '../types';
 
 interface EmailAuthViewProps {
-  onComplete: (data: { email: string; age: number; isNewUser: boolean; existingUser?: UserProfile; needsVerification?: boolean }) => Promise<void>;
+  onComplete: (data: { email: string; age: number; isNewUser: boolean; existingUser?: UserProfile; needsVerification?: boolean }) => void;
   onCancel: () => void;
 }
 
@@ -19,23 +19,27 @@ const EmailAuthView: React.FC<EmailAuthViewProps> = ({ onComplete, onCancel }) =
   const [checks, setChecks] = useState({
     over35: false,
     isBihon: false,
-    isUnmarried: false
+    isUnmarried: false,
+    termsAgreed: false
   });
 
   const validateEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!validateEmail(email)) {
+    const trimmedEmail = email.trim();
+    const trimmedPassword = password.trim();
+
+    if (!validateEmail(trimmedEmail)) {
       setError('올바른 이메일 형식을 입력해 주세요.');
       return;
     }
-    if (password.length < 6) {
+    if (trimmedPassword.length < 6) {
       setError('비밀번호는 6자리 이상이어야 합니다.');
       return;
     }
-    if (!isLoginMode && (!checks.over35 || !checks.isBihon || !checks.isUnmarried)) {
-      setError('필수 자격 요건에 모두 동의해 주세요.');
+    if (!isLoginMode && (!checks.over35 || !checks.isBihon || !checks.isUnmarried || !checks.termsAgreed)) {
+      setError('필수 자격 요건 및 약관에 모두 동의해 주세요.');
       return;
     }
     if (!isLoginMode && (age < 35)) {
@@ -47,53 +51,40 @@ const EmailAuthView: React.FC<EmailAuthViewProps> = ({ onComplete, onCancel }) =
     setError('');
     setShowSwitchOption(false);
 
-    const authPromise = isLoginMode 
-      ? signInWithEmailAndPassword(auth, email, password)
-      : createUserWithEmailAndPassword(auth, email, password);
-
-    const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('AUTH_TIMEOUT')), 15000)
-    );
-
     try {
       if (isLoginMode) {
-        console.log("Attempting login for:", email);
-        const userCredential = await Promise.race([authPromise, timeoutPromise]) as any;
+        // 1. Firebase Auth 로그인
+        const userCredential = await signInWithEmailAndPassword(auth, trimmedEmail, trimmedPassword);
         const firebaseUser = userCredential.user;
-        console.log("Login successful, user:", firebaseUser.uid);
 
+        // 2. 이메일 인증 여부 확인
         if (!firebaseUser.emailVerified) {
-          console.log("Email not verified");
-          await onComplete({ email, age, isNewUser: false, needsVerification: true });
+          onComplete({ email: trimmedEmail, age, isNewUser: false, needsVerification: true });
           return;
         }
 
-        console.log("Fetching user profile...");
+        // 3. Firestore 프로필 조회
         const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
         if (userDoc.exists()) {
-          console.log("Profile found");
           const userData = userDoc.data() as UserProfile;
-          await onComplete({ email, age: userData.age, isNewUser: false, existingUser: userData });
+          onComplete({ email: trimmedEmail, age: userData.age, isNewUser: false, existingUser: userData });
         } else {
-          console.log("No profile found, redirecting to setup");
-          await onComplete({ email, age, isNewUser: true });
+          onComplete({ email: trimmedEmail, age, isNewUser: true });
         }
       } else {
-        console.log("Attempting signup for:", email);
-        const userCredential = await Promise.race([authPromise, timeoutPromise]) as any;
-        console.log("Signup successful");
+        // 1. Firebase Auth 회원가입
+        const userCredential = await createUserWithEmailAndPassword(auth, trimmedEmail, trimmedPassword);
         
+        // 2. 인증 메일 발송
         await sendEmailVerification(userCredential.user);
-        console.log("Verification email sent");
         
-        await onComplete({ email, age, isNewUser: true, needsVerification: true });
+        // 3. 인증 대기 상태로 이동
+        onComplete({ email: trimmedEmail, age, isNewUser: true, needsVerification: true });
       }
     } catch (err: any) {
-      console.error("Auth Error:", err.code, err.message);
-      if (err.message === 'AUTH_TIMEOUT') {
-        setError('인증 서버 응답 시간이 초과되었습니다. Firebase 콘솔에서 [Email/Password] 인증이 활성화되어 있는지, 그리고 현재 도메인이 [승인된 도메인]에 등록되어 있는지 확인해 주세요.');
-      } else if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
-        setError('이메일 또는 비밀번호가 일치하지 않습니다.');
+      // console.error("Auth Error:", err.code, err.message); // 사용자에게 혼란을 줄 수 있는 콘솔 로그 제거
+      if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+        setError('이메일 또는 비밀번호가 일치하지 않습니다. 다시 확인해 주세요.');
       } else if (err.code === 'auth/email-already-in-use') {
         setError('이미 가입된 이메일입니다. 로그인 화면으로 가시겠습니까?');
         setShowSwitchOption(true);
@@ -104,9 +95,7 @@ const EmailAuthView: React.FC<EmailAuthViewProps> = ({ onComplete, onCancel }) =
       } else if (err.code === 'auth/unauthorized-domain') {
         setError('현재 도메인이 Firebase 승인 도메인에 등록되어 있지 않습니다.');
       } else if (err.code === 'auth/too-many-requests') {
-        setError('너무 많은 요청이 발생했습니다. 잠시 후 다시 시도해 주세요.');
-      } else if (err.code === 'auth/network-request-failed') {
-        setError('네트워크 연결이 원활하지 않습니다. 인터넷 연결을 확인해 주세요.');
+        setError('너무 많은 시도가 있었습니다. 잠시 후 다시 시도해 주세요.');
       } else {
         setError(`인증 오류: ${err.code || '알 수 없는 오류'}. 잠시 후 다시 시도해 주세요.`);
       }
@@ -209,6 +198,26 @@ const EmailAuthView: React.FC<EmailAuthViewProps> = ({ onComplete, onCancel }) =
                 {checks.isUnmarried && <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={4}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
               </div>
               <span className="text-[12px] font-bold text-slate-500 group-hover:text-teal-600 transition-colors">본인은 과거 혼인(이혼/사별) 이력이 전혀 없는 법적 초혼 상태입니다 (필수)</span>
+            </label>
+            <label 
+              onClick={() => setChecks(p => ({ ...p, termsAgreed: !p.termsAgreed }))}
+              className="flex items-center gap-3 cursor-pointer group"
+            >
+              <div className={`w-5 h-5 rounded-md border flex items-center justify-center transition-all ${checks.termsAgreed ? 'bg-teal-500 border-teal-500' : 'bg-slate-50 border-slate-200'}`}>
+                {checks.termsAgreed && <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={4}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
+              </div>
+              <div className="text-[12px] font-bold text-slate-500 group-hover:text-teal-600 transition-colors">
+                <a 
+                  href="https://kind-radar-db5.notion.site/3114ef1e03d680bf9f53f751f3c79891" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="underline underline-offset-2 hover:text-teal-700"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  이용약관 및 개인정보처리방침
+                </a>
+                에 동의합니다 (필수)
+              </div>
             </label>
           </div>
         )}

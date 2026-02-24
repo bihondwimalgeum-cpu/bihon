@@ -239,14 +239,6 @@ const MyPageView: React.FC<MyPageViewProps> = ({
               >
                 수정하기
               </button>
-              {user.isSubscribed && (
-                <div className="flex items-center gap-1.5 px-3 py-1.5 bg-teal-500 text-white rounded-full text-[10px] font-bold shadow-lg shadow-teal-500/10">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3">
-                    <path fillRule="evenodd" d="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.007 5.404.433c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.373 21.18c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404-.433 2.082-5.006z" clipRule="evenodd" />
-                  </svg>
-                  맑은 삶 패스
-                </div>
-              )}
             </>
           ) : (
             <div className="flex gap-2">
@@ -448,10 +440,24 @@ const MyPageView: React.FC<MyPageViewProps> = ({
             </svg>
             <span className="text-[13px] font-medium text-slate-300 group-hover:text-rose-400 underline underline-offset-4 decoration-slate-200">서비스 탈퇴</span>
           </button>
+
+          <div className="flex flex-col gap-1 mt-2 border-t border-slate-50 pt-4">
+            <a 
+              href="https://kind-radar-db5.notion.site/3114ef1e03d680bf9f53f751f3c79891" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="flex items-center gap-3 py-3 px-1 group transition-colors active:opacity-60"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+              </svg>
+              <span className="text-[12px] font-medium text-slate-400 group-hover:text-slate-600">이용약관 및 개인정보처리방침</span>
+            </a>
+          </div>
         </div>
 
         <div className="mt-4 text-center">
-          <p className="text-[9px] text-slate-200 font-medium uppercase tracking-widest">Version 1.2.0 (Premium Pass)</p>
+          <p className="text-[9px] text-slate-200 font-medium uppercase tracking-widest">Version 1.2.0</p>
         </div>
       </section>
     </div>

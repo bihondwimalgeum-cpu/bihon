@@ -10,7 +10,6 @@ export interface UserProfile {
   nickname: string;
   age: number;
   isCertified: boolean;
-  isSubscribed: boolean; // 구독 여부 추가
   joinedAt: string; // 가입일시 추가
   interests: string[];
   bio: string;
@@ -58,5 +57,4 @@ export type ViewState =
   | 'CHATTING' 
   | 'CHAT_ROOM'
   | 'CREATE_MEETING'
-  | 'EDIT_MEETING'
-  | 'SUBSCRIPTION'; // 구독 뷰 추가
+  | 'EDIT_MEETING';

@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { ViewState, UserProfile, Meeting, UserParticipation } from './types';
 import { MOCK_MEETINGS } from './constants';
-import { db, auth, onAuthStateChanged, signOut, deleteUser, doc, setDoc, getDoc, collection, query, onSnapshot, updateDoc, addDoc, increment, where, getDocs, deleteDoc, arrayUnion, arrayRemove, orderBy } from './firebase';
+import { db, auth, onAuthStateChanged, signOut, deleteUser, doc, setDoc, getDoc, collection, query, onSnapshot, updateDoc, addDoc, increment, where, getDocs, deleteDoc, arrayUnion, arrayRemove, orderBy, collectionGroup } from './firebase';
 import EmailAuthView from './views/EmailAuthView';
 import EmailVerificationView from './views/EmailVerificationView';
 import ProfileSetupView from './views/ProfileSetupView';
@@ -14,7 +14,6 @@ import MessagesView from './views/MessagesView';
 import ChatRoomView from './views/ChatRoomView';
 import CreateMeetingView from './views/CreateMeetingView';
 import EditMeetingView from './views/EditMeetingView';
-import SubscriptionView from './views/SubscriptionView';
 import Header from './components/Header';
 import NavigationBar from './components/NavigationBar';
 
@@ -158,7 +157,6 @@ const App: React.FC = () => {
       nickname: profileData.nickname || '익명',
       age: tempProfile.age || 35,
       isCertified: false,
-      isSubscribed: false,
       joinedAt: new Date().toISOString(), // 가입일시 기록
       interests: profileData.interests || [],
       bio: profileData.bio || '',
@@ -265,11 +263,23 @@ const App: React.FC = () => {
 
     try {
       const currentUserId = user.id;
+
+      // 1. 사용자가 작성한 모든 메시지 삭제 (모든 모임 대상)
+      const userMessagesQuery = query(collectionGroup(db, 'messages'), where('senderId', '==', currentUserId));
+      const userMessagesSnapshot = await getDocs(userMessagesQuery);
+      await Promise.all(userMessagesSnapshot.docs.map(m => deleteDoc(m.ref)));
+
       const hostMeetingsQuery = query(collection(db, 'meetings'), where('hostId', '==', currentUserId));
       const hostMeetingsSnapshot = await getDocs(hostMeetingsQuery);
       
       for (const mDoc of hostMeetingsSnapshot.docs) {
         const meetingId = mDoc.id;
+        
+        // 해당 모임의 모든 메시지 삭제
+        const messagesQuery = query(collection(db, `meetings/${meetingId}/messages`));
+        const messagesSnapshot = await getDocs(messagesQuery);
+        await Promise.all(messagesSnapshot.docs.map(m => deleteDoc(m.ref)));
+
         const pQuery = query(collection(db, 'participations'), where('meetingId', '==', meetingId));
         const pSnapshot = await getDocs(pQuery);
         await Promise.all(pSnapshot.docs.map(d => deleteDoc(d.ref)));
@@ -290,10 +300,20 @@ const App: React.FC = () => {
       }
 
       await deleteDoc(doc(db, 'users', currentUserId));
+
+      // 4. 모든 모임에서 좋아요 기록 삭제
+      const likedMeetingsQuery = query(collection(db, 'meetings'), where('likedUserIds', 'array-contains', currentUserId));
+      const likedMeetingsSnapshot = await getDocs(likedMeetingsQuery);
+      await Promise.all(likedMeetingsSnapshot.docs.map(mDoc => 
+        updateDoc(mDoc.ref, {
+          likedUserIds: arrayRemove(currentUserId)
+        })
+      ));
+
       try {
         await deleteUser(auth.currentUser);
       } catch (authErr: any) {
-        if (authErr.code === 'auth/requires-recent-login') {
+        if (authErr.code === 'auth/requires-recent-login' || authErr.code === 'auth/invalid-credential') {
           alert("보안을 위해 다시 로그인한 후 탈퇴를 진행해 주세요.");
           await signOut(auth);
           setView('AUTH_EMAIL');
@@ -326,15 +346,15 @@ const App: React.FC = () => {
   const handleJoinMeeting = async (meetingId: string) => {
     if (!user) { setView('AUTH_EMAIL'); return; }
     
-    // 구독 여부 체크
-    if (!user.isSubscribed) {
-      setSelectedMeetingId(meetingId);
-      setView('SUBSCRIPTION');
+    const targetMeeting = meetings.find(m => m.id === meetingId);
+    if (!targetMeeting) return;
+    
+    // 강퇴된 유저인지 확인
+    if (targetMeeting.kickedUserIds?.includes(user.id)) {
+      alert("이 모임의 호스트에 의해 내보내기 처리되어 다시 참여할 수 없습니다.");
       return;
     }
 
-    const targetMeeting = meetings.find(m => m.id === meetingId);
-    if (!targetMeeting) return;
     if (targetMeeting.currentParticipants >= targetMeeting.capacity) {
       alert("이미 정원이 가득 찬 모임입니다.");
       return;
@@ -357,23 +377,6 @@ const App: React.FC = () => {
     setView('CHAT_ROOM');
   };
 
-  const handleSubscribeComplete = async () => {
-    if (!user) return;
-    try {
-      const userRef = doc(db, 'users', user.id);
-      await updateDoc(userRef, { isSubscribed: true });
-      setUser({ ...user, isSubscribed: true });
-      if (selectedMeetingId) {
-        setView('MEETING_DETAIL');
-      } else {
-        setView('HOME');
-      }
-    } catch (e) {
-      console.error(e);
-      alert("구독 처리 중 오류가 발생했습니다.");
-    }
-  };
-
   const handleKickMembers = async (meetingId: string, userIds: string[]) => {
     if (userIds.length === 0) return;
     try {
@@ -384,7 +387,10 @@ const App: React.FC = () => {
         await Promise.all(deletePromises);
       }
       const meetingRef = doc(db, 'meetings', meetingId);
-      await updateDoc(meetingRef, { currentParticipants: increment(-userIds.length) });
+      await updateDoc(meetingRef, { 
+        currentParticipants: increment(-userIds.length),
+        kickedUserIds: arrayUnion(...userIds)
+      });
     } catch (e) { console.error(e); alert("내보내기 실패"); }
   };
 
@@ -409,20 +415,9 @@ const App: React.FC = () => {
   };
 
   const renderView = () => {
-    const handleEmailVerification = async () => {
-      if (!auth.currentUser) return;
-      const userDoc = await getDoc(doc(db, 'users', auth.currentUser.uid));
-      if (userDoc.exists()) {
-        setUser(userDoc.data() as UserProfile);
-        setView('HOME');
-      } else {
-        setView('PROFILE_SETUP');
-      }
-    };
-
     switch (view) {
       case 'AUTH_EMAIL': return <EmailAuthView onComplete={handleEmailAuthComplete} onCancel={() => setView('HOME')} />;
-      case 'VERIFY_EMAIL': return <EmailVerificationView email={tempProfile.email || auth.currentUser?.email || ''} onVerified={handleEmailVerification} onCancel={() => setView('HOME')} />;
+      case 'VERIFY_EMAIL': return <EmailVerificationView email={tempProfile.email || auth.currentUser?.email || ''} onVerified={() => setView('PROFILE_SETUP')} onCancel={() => setView('HOME')} />;
       case 'PROFILE_SETUP': return <ProfileSetupView onComplete={handleProfileSetupComplete} />;
       case 'WELCOME': return <WelcomeView onFinish={() => setView('HOME')} />;
       case 'HOME': return <HomeView user={user} meetings={visibleMeetings} onSelectMeeting={(id) => { setActiveChatId(null); setSelectedMeetingId(id); setView('MEETING_DETAIL'); }} onToggleLike={handleToggleLike} onCreateClick={() => { if (!user) setView('AUTH_EMAIL'); else setView('CREATE_MEETING'); }} />;
@@ -441,20 +436,18 @@ const App: React.FC = () => {
         const m = visibleMeetings.find(meeting => meeting.id === activeChatId);
         return user && m ? <ChatRoomView user={user} meeting={m} onBack={() => setView('CHATTING')} onShowDetail={(id) => { setSelectedMeetingId(id); setView('MEETING_DETAIL'); }} onBlockUser={handleBlockUser} /> : null;
       }
-      case 'SUBSCRIPTION': return <SubscriptionView onComplete={handleSubscribeComplete} onBack={() => setView('MEETING_DETAIL')} />;
       default: return <HomeView user={user} meetings={visibleMeetings} onSelectMeeting={(id) => { setSelectedMeetingId(id); setView('MEETING_DETAIL'); }} onToggleLike={handleToggleLike} onCreateClick={() => setView('CREATE_MEETING')} />;
     }
   };
 
-  const showHeader = ['HOME', 'MEETING_DETAIL', 'MY_PAGE', 'CHATTING', 'CREATE_MEETING', 'EDIT_MEETING', 'AUTH_EMAIL', 'VERIFY_EMAIL', 'PROFILE_SETUP', 'SUBSCRIPTION'].includes(view);
+  const showHeader = ['HOME', 'MEETING_DETAIL', 'MY_PAGE', 'CHATTING', 'CREATE_MEETING', 'EDIT_MEETING', 'AUTH_EMAIL', 'VERIFY_EMAIL', 'PROFILE_SETUP'].includes(view);
   const showNav = ['HOME', 'MY_PAGE', 'CHATTING'].includes(view);
   const isChatRoom = view === 'CHAT_ROOM';
 
   return (
     <div className="max-w-md mx-auto min-h-screen flex flex-col bg-white relative border-x border-slate-100 shadow-sm overflow-hidden">
-      {showHeader && <Header title={view === 'HOME' ? '비혼뒤맑음' : ''} showBack={['MEETING_DETAIL', 'CREATE_MEETING', 'EDIT_MEETING', 'AUTH_EMAIL', 'VERIFY_EMAIL', 'PROFILE_SETUP', 'SUBSCRIPTION'].includes(view)} onBack={() => {
-        if (view === 'SUBSCRIPTION') setView('MEETING_DETAIL');
-        else if (activeChatId) setView('CHAT_ROOM');
+      {showHeader && <Header title={view === 'HOME' ? '비혼뒤맑음' : ''} showBack={['MEETING_DETAIL', 'CREATE_MEETING', 'EDIT_MEETING', 'AUTH_EMAIL', 'VERIFY_EMAIL', 'PROFILE_SETUP'].includes(view)} onBack={() => {
+        if (activeChatId) setView('CHAT_ROOM');
         else setView('HOME');
       }} />}
       <main className={`flex-1 flex flex-col ${isChatRoom ? 'overflow-hidden' : 'overflow-y-auto'} ${showNav ? 'pb-32' : isChatRoom ? 'pb-0' : 'pb-16'}`}>

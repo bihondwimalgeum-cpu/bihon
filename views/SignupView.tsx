@@ -125,8 +125,28 @@ const SignupView: React.FC<SignupViewProps> = ({ onComplete, onCancel }) => {
         </div>
       </div>
 
-      <div className="text-center text-[10px] text-slate-300 leading-relaxed font-light tracking-wide px-4">
-        입력하신 개인정보는 35세 이상 확인 후 즉시 파기되며,<br/>서버에 절대 저장되거나 노출되지 않습니다.
+      <div className="text-center flex flex-col gap-2">
+        <div className="flex justify-center gap-4 text-[10px] text-slate-400 font-medium">
+          <a 
+            href="https://kind-radar-db5.notion.site/3114ef1e03d680bf9f53f751f3c79891" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="hover:text-teal-500 underline underline-offset-2"
+          >
+            이용약관
+          </a>
+          <a 
+            href="https://kind-radar-db5.notion.site/3114ef1e03d680bf9f53f751f3c79891" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="hover:text-teal-500 underline underline-offset-2"
+          >
+            개인정보처리방침
+          </a>
+        </div>
+        <p className="text-[10px] text-slate-300 leading-relaxed font-light tracking-wide px-4">
+          입력하신 개인정보는 35세 이상 확인 후 즉시 파기되며,<br/>서버에 절대 저장되거나 노출되지 않습니다.
+        </p>
       </div>
     </div>
   );

@@ -16,7 +16,8 @@ import {
   onSnapshot,
   orderBy,
   arrayUnion,
-  arrayRemove
+  arrayRemove,
+  collectionGroup
 } from "firebase/firestore";
 import { 
   getAuth, 
@@ -69,5 +70,6 @@ export {
   onSnapshot,
   orderBy,
   arrayUnion,
-  arrayRemove
+  arrayRemove,
+  collectionGroup
 };

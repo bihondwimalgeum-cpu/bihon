@@ -24,27 +24,16 @@ const EmailVerificationView: React.FC<EmailVerificationViewProps> = ({ email, on
   const checkVerification = async () => {
     if (!auth.currentUser) return;
     setIsRefreshing(true);
-    setMessage('');
-    
-    const reloadPromise = reload(auth.currentUser);
-    const timeoutPromise = new Promise((_, reject) => 
-      setTimeout(() => reject(new Error('TIMEOUT')), 10000)
-    );
-
     try {
-      await Promise.race([reloadPromise, timeoutPromise]);
+      await reload(auth.currentUser);
       if (auth.currentUser.emailVerified) {
         onVerified();
       } else {
         setMessage('아직 인증이 완료되지 않았습니다. 메일함의 링크를 클릭해 주세요.');
       }
-    } catch (e: any) {
+    } catch (e) {
       console.error(e);
-      if (e.message === 'TIMEOUT') {
-        setMessage('서버 응답이 지연되고 있습니다. 잠시 후 다시 시도해 주세요.');
-      } else {
-        setMessage('상태를 확인하는 중 오류가 발생했습니다.');
-      }
+      setMessage('상태를 확인하는 중 오류가 발생했습니다.');
     } finally {
       setIsRefreshing(false);
     }

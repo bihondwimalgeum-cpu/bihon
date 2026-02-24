@@ -52,7 +52,8 @@ const CreateMeetingView: React.FC<CreateMeetingViewProps> = ({ user, onComplete,
         isCertifiedOnly: false, // 인증 멤버 전용 기능은 사용하지 않으므로 false 고정
         imageUrl: `https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?auto=format&fit=crop&q=80&w=600&seed=${Date.now()}`,
         moodTags: moodTags.split(',').map(tag => tag.trim().replace('#', '')).filter(t => t !== ''),
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        kickedUserIds: []
       };
 
       await onComplete(newMeeting);
